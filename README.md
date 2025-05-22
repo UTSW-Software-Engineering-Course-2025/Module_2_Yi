@@ -168,13 +168,13 @@ In order to get the most updated files you can:
 
 There are 3 conda environments that we have already created for you that you will use for the exercises in this block.
 
-1) In the terminal, cd into the Module_2_Materials folder and Execute the following commands:
-> source install_montillo_conda_env.sh
+* In the terminal, cd into the Module_2_Materials folder and Execute the following commands:
+> source 03_CondaEnvironment/install_montillo_conda_env.sh
 
 This command will take a few seconds to execute.
 
-2) Each subsequent time You will need to activate each conda environment with: 
-> source activate_montillo_conda_env.sh 
+* Each subsequent time You will need to activate each conda environment with: 
+> source 03_CondaEnvironment/activate_montillo_conda_env.sh 
 
 
 **IMPORTANT:** 
