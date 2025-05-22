@@ -6,7 +6,7 @@ export TF_USE_LEGACY_KERAS=1
 account=$(whoami | grep -Eo '[1-9][0-9]*')
 if [ ! -z $account ];
 then 
-	export CUDA_VISIBLE_DEVICES=$($account%2)
+	export CUDA_VISIBLE_DEVICES=$(($account%2))
     echo "Assigned GPU: $CUDA_VISIBLE_DEVICES"
 else
 	echo "Unable to set CUDA_VISIBLE_DEVICES from training account. Setting to 0"
