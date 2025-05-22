@@ -1,4 +1,4 @@
-# Block 3: Course Setup Instructions
+# Course Setup Instructions
 
 ## Part 1: Setup Git Repository:
 
