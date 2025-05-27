@@ -49,7 +49,10 @@ class MyImgClass():
         :rtype: MyImgClass
         """
         ### TO IMPLEMENT ###
-        raise NotImplementedError('You need to implement this method!')
+        if self.arrImg.shape != other.arrImg.shape:
+            raise ValueError("Images must have the same shape to subtract.")
+        result_img = np.subtract(self.arrImg, other.arrImg)
+        return MyImgClass(result_img, intLabel=None)
         
     
     def fPixelwiseSqDif(self, other):
@@ -62,7 +65,8 @@ class MyImgClass():
         """
         ### TO IMPLEMENT ###
         # Use the overloaded '-' from above
-        raise NotImplementedError('You need to implement this method!')
+        return MyImgClass(np.square(self.arrImg - other.arrImg), intLabel=None)
+        
     
     
     
@@ -75,7 +79,7 @@ class MyImgClass():
         :rtype: float
         """
         ### TO IMPLEMENT ###
-        raise NotImplementedError('You need to implement this method!')
+        return np.mean(self.fPixelwiseSqDif(other).arrImg)
 
     
     def fPlot(self, ax, show_ticks=False, add_colorbar=False, imshow_kwargs={}):
@@ -110,8 +114,17 @@ class MyImgClass():
         :return: The mean image
         :rtype: MyImgClass
         """
-        ### TO IMPLEMENT ###
-        raise NotImplementedError('You need to implement this method!')
+        if not lMyImgClass:
+            raise ValueError("Input list is empty.")
+    
+        # Stack all image arrays into a 3D array: [N, H, W]
+        img_stack = np.stack([img.arrImg for img in lMyImgClass], axis=0)
+        
+        # Compute mean across the 0th dimension (i.e., across images)
+        mean_img = np.std(img_stack, axis=0)
+        
+        # Return as a new MyImgClass object (label not needed here)
+        return MyImgClass(mean_img, intLabel=None)
     
     @staticmethod
     def fComputeStdAcrossImages(lMyImgClass):
@@ -122,8 +135,17 @@ class MyImgClass():
         :return: The std image
         :rtype: MyImgClass
         """
-        ### TO IMPLEMENT ###
-        raise NotImplementedError('You need to implement this method!')
+        if not lMyImgClass:
+            raise ValueError("Input list is empty.")
+    
+        # Stack all image arrays into a 3D array: [N, H, W]
+        img_stack = np.stack([img.arrImg for img in lMyImgClass], axis=0)
+        
+        # Compute mean across the 0th dimension (i.e., across images)
+        mean_img = np.mean(img_stack, axis=0)
+        
+        # Return as a new MyImgClass object (label not needed here)
+        return MyImgClass(mean_img, intLabel=None)
         
 
     @staticmethod
@@ -139,7 +161,12 @@ class MyImgClass():
         :rtype: float
         """
         ### TO IMPLEMENT ###
-        raise NotImplementedError('You need to implement this method!')
+        if len(lImg1) != len(lImg2):
+            raise ValueError("Lists must have the same length.")
+        mse_list = []
+        for img1, img2 in zip(lImg1, lImg2):
+            mse_list.append(img1.fMSE(img2))
+        return np.mean(mse_list)
 
 
     @staticmethod

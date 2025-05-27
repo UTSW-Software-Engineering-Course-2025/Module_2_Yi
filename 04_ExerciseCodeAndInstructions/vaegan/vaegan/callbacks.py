@@ -74,7 +74,7 @@ class GenerateImages(Callback):
   
         
 class SaveImages(Callback):
-    def __init__(self, output_dir, model, example_images, 
+    def __init__(self, output_dir, example_images, model,
                  n_generated_images=10, 
                  n_latent_dims=8):
         """Callback for saving examples of reconstructions and synthetic 
@@ -93,7 +93,7 @@ class SaveImages(Callback):
         self.example_images = example_images
         self.n_generated_images = n_generated_images
         self.n_latent_dims = n_latent_dims
-        self.model = model
+        print("SaveImages callback initialized")
         
     def on_epoch_end(self, epoch, logs=None):
         """Overrides the on_epoch_end method of the superclass Callback. Here,
@@ -114,7 +114,9 @@ class SaveImages(Callback):
                 includes this argument, we have to include it in our overriding 
                 method. Defaults to None.
         """        
-        del logs # Unused
+        # tf.keras.backend.clear_session() 
+        # del logs # Unused
+        
         
         # Compress images into probabilistic latent representations with
         # encoder. Note that calling the encoder model on a numpy array yields
@@ -124,8 +126,10 @@ class SaveImages(Callback):
         z_real = sfn(z_mean, z_logvar)
         # Reconstruct images with decoder
         recons = self.model.decoder(z_real)
-        # Convert from tensors to numpy arrays
-        recons = recons.numpy()
+        if tf.executing_eagerly():
+            recons = recons.numpy()
+        else:
+            recons = tf.keras.backend.get_value(recons)
         n_recons = recons.shape[0]
         
         # Use the gray colormap if the image is grayscale (last dimension is 1),

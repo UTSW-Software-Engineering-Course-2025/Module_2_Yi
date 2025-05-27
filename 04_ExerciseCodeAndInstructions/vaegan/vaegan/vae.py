@@ -32,9 +32,12 @@ def sample_from_normal(dist_mean, dist_logvar):
     # HINT: See the lecture notes and use tf.random.normal  and tf.exp
     # Store the result in sampledZ so it can be returned.
     # 
+    epsilon = tf.random.normal(shape=tf.shape(dist_mean))
+    sigma = tf.exp(0.5 * dist_logvar)
+    sampledZ = dist_mean + sigma * epsilon
 
-    # ========================   
     return sampledZ
+
 
 def kl_divergence(dist_mean, dist_logvar):
     """Compute the closed-form KL Divergence between a given distribution and a 
@@ -60,6 +63,9 @@ def kl_divergence(dist_mean, dist_logvar):
     # 3. Finally compute the mean KL divergence over all samples, and returen the result in divKL_AllSamples
     # e.g.  divKL_AllSamples=.... 
 
+    kl_per_dim = 0.5 * (tf.exp(dist_logvar) + tf.square(dist_mean) - 1.0 - dist_logvar)
+    kl_per_sample = tf.reduce_sum(kl_per_dim, axis=1)
+    divKL_AllSamples = tf.reduce_mean(kl_per_sample)
 
     # ========================    
 
@@ -276,7 +282,7 @@ class Decoder(tf.keras.Model):
                                   self.image_shape[1] // (2 ** n_encoder_strided_layers),
                                   n_encoder_last_filters)
         
-        dense_neurons = np.product(first_conv_input_shape)
+        dense_neurons = int(tf.math.reduce_prod(first_conv_input_shape))
         
         self.dense = tkl.Dense(dense_neurons, name='dense')
         self.relu_dense = tkl.ReLU(name='relu_dense')
@@ -399,9 +405,15 @@ class VAE(tf.keras.Model):
         # 1. Call the base class init, passing it all of the relevant fields that it expects as arguments. 
         #    Hint its generally wise to pass through any misc arguments sent to the derived clas __init__() in kwargs  to the base class __init__().
 
+        super(VAE, self).__init__(name=name, **kwargs)
+
+
+        print(f"Loaded version: {__name__}")
 
         # 2. Store the number of latent dimensions, image shape and kl loss weight in a member variable of the same name in the current (self) instance variable.
-
+        self.n_latent_dims = n_latent_dims
+        self.image_shape = image_shape
+        self.kl_loss_weight = kl_loss_weight
 
 
 
@@ -410,13 +422,15 @@ class VAE(tf.keras.Model):
         #    Therefore construct an Encoder instance and store it in self.encoder
         #              construct a Decoder instance and store it in self.decoder
         # 
-
+        # Construct encoder and decoder
+        self.encoder = Encoder(n_latent_dims=self.n_latent_dims)
+        self.decoder = Decoder(image_shape=self.image_shape)
 
         # 4. Use the mean squared error as the reconstruction loss. Do not reduce
         # values (average over samples), return per-pixel values instead.   
         # Give it the name 'recon_mse'    
         # Therefore construct a tf.keras.losses.MeanSquaredError  and store the instance in self.loss_recon
-        
+        self.loss_recon = tf.keras.losses.MeanSquaredError(reduction='none', name='recon_mse')
         # 5. Define some custom metrics to track the running means of each loss.
         # The values of these metrics will be printed in the progress bar with
         # each training iteration.
@@ -424,6 +438,9 @@ class VAE(tf.keras.Model):
         #  tf.keras.metrics.Mean  with the name 'recon_loss' and store it in self.loss_recon_tracker
         #  tf.keras.metrics.Mean  with the name 'kl_loss' and store it in self.loss_kl_tracker
         #  tf.keras.metrics.Mean  with the name 'total_loss' and store it in self.loss_total_tracker
+        self.loss_recon_tracker = tf.keras.metrics.Mean(name='recon_loss')
+        self.loss_kl_tracker = tf.keras.metrics.Mean(name='kl_loss')
+        self.loss_total_tracker = tf.keras.metrics.Mean(name='total_loss')
 
  
 
@@ -471,23 +488,29 @@ class VAE(tf.keras.Model):
         # 1. Tell tensorflow to build a computational graph for the forward pass, so that gradients can be computed for us.
         #    Therefore use tf.GradientTape(persistent=True) to start the beginning of a python runtime context using the "with" keyword.
         #    Note the argument persistent=True is required to compute multiple gradients from a single GradientTape
+        with tf.GradientTape(persistent=True) as tape:
+
 
         #      # === Beginning OF INDENTED BLOCK ===
         #      Note: steps 2- 7 are indented and thus inside the context block 
         #      2. Use encoder to predict probabilistic latent representations by invoking its forward pass, call, but do that indirectly through self.encoder
         #         provide images_real and tell it that we are training  (training=True)
         #         unpack the outputs into z_mean and z_logvar
+            z_mean, z_logvar = self.encoder(images_real, training=True)
 
         #      3.Sample a point from the latent distributions.  Use your sample_from_normal() with the arguments of the mean and logvar returned from self.encoder
         #        store the result in z
+            z = sample_from_normal(z_mean, z_logvar)
 
         #      4. Now Use decoder to reconstruct image by invoking its forward pass, call, but do taht indirectly through self.decoder
         #         provide the sampled point as input and provide the argument training=True since this is a train_step
         #         store the result in the  variable recons
+            recons = self.decoder(z, training=True)
+
 
         #      5. Compute KL divergence loss between latent representations and the prior using your function kl_divergence() 
         #         store the result in kl_loss
-
+            kl_loss = kl_divergence(z_mean, z_logvar)
         #    [ 6. ] Compute reconstruction loss
         #        # To simplify we provide this code for you  (you need to uncomment it, but keep it indented):
         #        recon_loss_pixel = self.loss_recon(images_real, recons)   # uncomment this line
@@ -496,24 +519,34 @@ class VAE(tf.keras.Model):
         #        # average across samples.
         #        recon_loss_sample = tf.reduce_sum(recon_loss_pixel, axis=(1, 2))  # uncomment this line
         #        recon_loss = tf.reduce_mean(recon_loss_sample)  # uncomment this line
+            recon_loss_pixel = self.loss_recon(images_real, recons)
+            recon_loss_sample = tf.reduce_sum(recon_loss_pixel, axis=(1, 2))
+            recon_loss = tf.reduce_mean(recon_loss_sample)
 
         # #  [ 7. ] Sum the loss terms (we provide this code for you):
         #        total_loss = recon_loss + self.kl_loss_weight * kl_loss  # uncomment this line
         #        # === END OF INDENTED BLOCK ===
+            total_loss = recon_loss + self.kl_loss_weight * kl_loss
 
         # 8. Compute the gradients for each loss wrt their respectively model weights
         #    A) Use the gradient tape to compute the gradients for the encoder and store the results in grads_enc
+        # grads_enc = tape.gradient(total_loss, self.encoder.trainable_variables)
+               
 
-        #    B) Use the gradient tape to compute the gradients for the dencoder and store the results in grads_dec
+        # #    B) Use the gradient tape to compute the gradients for the dencoder and store the results in grads_dec
+        # grads_dec = tape.gradient(total_loss, self.decoder.trainable_variables) 
 
+        # # 9. Apply the gradient descent steps to each submodel. The optimizer
+        # # attribute is created when model.compile(optimizer) is called by the
+        # # user.
+        # # A) First apply the gradient to the encoder. use self.optimizer.apply_gradients()
+        # self.optimizer.apply_gradients(zip(grads_enc, self.encoder.trainable_variables))
 
-        # 9. Apply the gradient descent steps to each submodel. The optimizer
-        # attribute is created when model.compile(optimizer) is called by the
-        # user.
-        # A) First apply the gradient to the encoder. use self.optimizer.apply_gradients()
+        # # B) Then apply the gradient to the decoder. use self.optimizer.apply_gradients()
+        # self.optimizer.apply_gradients(zip(grads_dec, self.decoder.trainable_variables))
 
-        # B) Then apply the gradient to the decoder. use self.optimizer.apply_gradients()
-        
+        grads = tape.gradient(total_loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))  
         
         # [ 10. ] Update the running means of the losses
         #  To simplify we provide this code for you 
@@ -596,12 +629,17 @@ class ConditionalVAE(VAE):
         # this one is a bit tricky so we will develop it together.        
 
         # 1. first we need to get the number of samples, height and width of the images 
+        batch_size = tf.shape(images)[0]
+        height = tf.shape(images)[1]
+        width = tf.shape(images)[2]
         
         # 2. next build a tensor containing the image labels for the current minibatch, which is stored in the variable, labels.
-
+        labels_expanded = tf.reshape(labels, [batch_size, 1, 1, self.n_classes])
+        labels_tiled = tf.tile(labels_expanded, [1, height, width, 1])
 
         
         # 3. Finally since the tensors are the same dimension along the last axis, we can concatenate them together. 
+        imagesConcatenatedWithPerPixelLabelVectors = tf.concat([images, labels_tiled], axis=-1)
 
         # ========================
 
@@ -668,25 +706,30 @@ class ConditionalVAE(VAE):
         # 1a. Expand the class labels into 3D tensors and concatenate to the channel 
         # dimension of the images by calling your make_conditional_input. 
         # Store the result in variable encoder_inputs
-
+        encoder_inputs = self.make_conditional_input(images_real, class_real)
         
         # 1b. Tell tensorflow to build a computational graph for the forward pass, so that gradients can be computed for us.
         #    Therefore use tf.GradientTape(persistent=True) to start the beginning of a python runtime context using the "with" keyword.
         #    Note the argument persistent=True is required to compute multiple gradients from a single GradientTape        
         #    persistent=True is required to compute multiple gradients from a single GradientTape
-            
+        with tf.GradientTape(persistent=True) as tape:
             # Follow steps 2..7 from the VAE's train_step() however there are two parts *** that are different for the ConditionalVAE:            
             # Use encoder to predict probabilistic latent representations 
-            
+            z_mean, z_logvar = self.encoder(encoder_inputs, training=True)
             # Sample a point from the latent distributions. 
-            
+            z = sample_from_normal(z_mean, z_logvar)
             # *** Step 3b: (new step) You will need to concatenate labels to latent representations
-
+            decoder_inputs = tf.concat([z, class_real], axis=-1)
             # *** Step 4: Use decoder to reconstruct image from the concatenated result
+            recons = self.decoder(decoder_inputs, training=True)
 
             # Compute KL divergence loss between latent representations and the prior
-            
+            kl_loss = kl_divergence(z_mean, z_logvar)
             # Compute reconstruction loss
+            recon_loss_pixel = self.loss_recon(images_real, recons)
+            recon_loss_sample = tf.reduce_sum(recon_loss_pixel, axis=(1, 2))
+            recon_loss = tf.reduce_mean(recon_loss_sample)
+            total_loss = recon_loss + self.kl_loss_weight * kl_loss
 
             # Recon loss is computed per pixel. Sum over the pixels and then
             # average across samples.
@@ -696,13 +739,17 @@ class ConditionalVAE(VAE):
                        
         # Follow steps 8-10 from the VAE.train_step()
         # 8. Compute the gradients for each loss wrt their respectively model weights
-        
+        grads_enc = tape.gradient(total_loss, self.encoder.trainable_variables)
+        grads_dec = tape.gradient(total_loss, self.decoder.trainable_variables)
         # 9. Apply the gradient descent steps to each submodel. The optimizer
         # attribute is created when model.compile(optimizer) is called by the
         # user.
-        
+        self.optimizer.apply_gradients(zip(grads_enc, self.encoder.trainable_variables))
+        self.optimizer.apply_gradients(zip(grads_dec, self.decoder.trainable_variables))
         # 10. Update the running means of the losses
-        
+        self.loss_recon_tracker.update_state(recon_loss)
+        self.loss_kl_tracker.update_state(kl_loss)
+        self.loss_total_tracker.update_state(total_loss)
         
         # [Given] Get the current values of these running means as a dict. These values
         # will be printed in the progress bar.
