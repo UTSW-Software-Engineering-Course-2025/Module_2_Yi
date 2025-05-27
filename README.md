@@ -201,6 +201,4 @@ You are now ready to complete the tasks for this block of the assignment! Puttin
 
 ![Settings](./img/setup_vscodeextensions_3.png)
 
-=======
-# Module_2_Yi
->>>>>>> 6ccd165391534aa666fd7b7820378e4622d0ab25
+
