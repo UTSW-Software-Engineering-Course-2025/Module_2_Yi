@@ -688,6 +688,10 @@ class ConditionalVAE(VAE):
 
 
         return recons   # finally we return the reconstructed image, which is a primary output of a VAE.
+    def compile(self, encoder_optimizer, decoder_optimizer, **kwargs):
+        super().compile(**kwargs)
+        self.encoder_optimizer = encoder_optimizer
+        self.decoder_optimizer = decoder_optimizer
     
     def train_step(self, data):
         """Defines a single training iteration, including the forward pass,
@@ -741,11 +745,12 @@ class ConditionalVAE(VAE):
         # 8. Compute the gradients for each loss wrt their respectively model weights
         grads_enc = tape.gradient(total_loss, self.encoder.trainable_variables)
         grads_dec = tape.gradient(total_loss, self.decoder.trainable_variables)
+        del tape
         # 9. Apply the gradient descent steps to each submodel. The optimizer
         # attribute is created when model.compile(optimizer) is called by the
         # user.
-        self.optimizer.apply_gradients(zip(grads_enc, self.encoder.trainable_variables))
-        self.optimizer.apply_gradients(zip(grads_dec, self.decoder.trainable_variables))
+        self.encoder_optimizer.apply_gradients(zip(grads_enc, self.encoder.trainable_variables))
+        self.decoder_optimizer.apply_gradients(zip(grads_dec, self.decoder.trainable_variables))
         # 10. Update the running means of the losses
         self.loss_recon_tracker.update_state(recon_loss)
         self.loss_kl_tracker.update_state(kl_loss)
@@ -754,5 +759,6 @@ class ConditionalVAE(VAE):
         # [Given] Get the current values of these running means as a dict. These values
         # will be printed in the progress bar.
         dictLosses = {loss.name: loss.result() for loss in self.metrics}
+        
         return dictLosses
     

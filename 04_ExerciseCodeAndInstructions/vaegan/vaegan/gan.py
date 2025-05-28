@@ -442,7 +442,7 @@ class MultiTaskDiscriminator(Discriminator):
         Args:
             name (str, optional): Model name. Defaults to 'discriminator'.
         """        
-        super(Discriminator, self).__init__(name=name, **kwargs)
+        super().__init__(name=name, **kwargs)
         
         self.n_classes = n_classes
         
@@ -575,10 +575,14 @@ class ConditionalGAN(GAN):
         self.discriminator = MultiTaskDiscriminator(n_classes)
         
         # Categorical cross-entropy loss for discriminator classification
-        #==>  complete this line of code         
+        self.loss_class_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+        self.metric_class = tf.keras.metrics.CategoricalAccuracy(name='class_acc')    
+        self.loss_gen_tracker = tf.keras.metrics.Mean(name="gen_loss")
+        self.loss_disc_tracker = tf.keras.metrics.Mean(name="disc_loss")
+        self.loss_fn_disc = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+        self.loss_fn_gen = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
-        # Classification accuracy 
-        #==>  complete this line of code         
+  
      
         print(f"Loaded version: {__name__}")
 
@@ -586,9 +590,12 @@ class ConditionalGAN(GAN):
     def call(self, inputs, training=None):
         # ToImplement Exercise6a_part2 ==
         # ===============================
-        #==>  complete this method , roughly 5 to 7 lines of code
-        
+        n = tf.shape(inputs)[0]
+        class_random = self.generate_random_classes(n)
+        z_cond = tf.concat([inputs, class_random], axis=1)
+        images_fake = self.generator(z_cond, training=training)
         return images_fake
+        
         
     @property
     def metrics(self):
@@ -600,15 +607,11 @@ class ConditionalGAN(GAN):
                 self.metric_class]
     
     def generate_random_classes(self, n_samples):
-        # Generate random class labels from uniform distribution
-        class_probs = tf.ones((1, self.n_classes))
-        class_random = tf.random.categorical(class_probs, num_samples=n_samples)
-        class_random = tf.squeeze(class_random)
-        # Convert from categorical to one-hot
-        class_random = tf.one_hot(class_random, depth=self.n_classes, dtype=tf.float32)
-        return class_random
-    
-    ##def train_step(self, data):
+        class_ids = tf.random.uniform(shape=(n_samples,), minval=0, maxval=self.n_classes, dtype=tf.int32)
+        return tf.one_hot(class_ids, depth=self.n_classes)
+
+
+    def train_step(self, data):
         # """Defines a single training iteration, including the forward pass,
         # computation of losses, backpropagation, and weight updates.
 
@@ -618,83 +621,81 @@ class ConditionalGAN(GAN):
         # Returns:
         #     dict: Loss values.
         # """        
-        ##images_real, class_real = data[0]
-
-        # ToImplement Exercise6a_part3 ==
-        # ===============================        
-        #==>  complete this method, you can uncomment the ## lines above and below as hints
-
+        images_real, class_real = data[0]
+        batch_size = tf.shape(images_real)[0]
+        print("images_train:", images_real.shape)
+        print("labels_onehot:", class_real.shape)
 
         # Step 1: Train the discriminator
+        latent_fake = tf.random.normal((batch_size, self.n_latent_dims))
+        class_fake = self.generate_random_classes(batch_size)
+        z_cond_fake = tf.concat([latent_fake, class_fake], axis=1)
+        images_fake = self.generator(z_cond_fake, training=True)
 
-        # Generate images from random latent vectors.
+        # Labels for real and fake images
+        label_real = tf.ones((batch_size, 1))
+        label_fake = tf.zeros((batch_size, 1))
 
+        # Concatenate images and labels
+        images_all = tf.concat([images_real, images_fake], axis=0)
+        labels_all = tf.concat([label_real, label_fake], axis=0)
+        class_all = tf.concat([class_real, class_fake], axis=0)
 
+        with tf.GradientTape() as gt:
+            # Discriminator predictions
+            pred_all, pred_class_all = self.discriminator(images_all, training=True)
 
+            # Discriminator loss: real/fake
+            loss_disc_real_fake = self.loss_fn_disc(labels_all, pred_all)
 
+            # Classification loss: real image classification
+            pred_class_real = pred_class_all[:batch_size] 
+            loss_disc_class = self.loss_class_fn(class_real, pred_class_real)
 
-        # Create label vectors, 1 for real and 0 for fake images
+            # Total discriminator loss
+            loss_disc_total = loss_disc_real_fake + loss_disc_class
 
+            # Update metric
+            self.metric_class.update_state(class_real, pred_class_real)
 
+        grads_disc = gt.gradient(loss_disc_total, self.discriminator.trainable_weights)
+        self.optimizer_disc.apply_gradients(zip(grads_disc, self.discriminator.trainable_weights))
 
-        # Concatenate real and fake images 
-
-
-
-        ##with tf.GradientTape() as gt:
-            # Predict with the discriminator
-            
-            # Compute discriminator loss for distinguishing real/fake images
-
-            # Compute discriminator loss for predicting image class, for real images only
-
-            # Add losses
-
-            
-            # Compute classification metric
-
-                                   
-        # Compute the gradient of the lost wrt the discriminator weights
-
-        
-        # Apply the weight updates
-
-        
         # Step 2: Train the generator
-                    
-        ##with tf.GradientTape() as gt2:
-            # Generate images from random latent vectors. Generate twice as many
-            # images as the batch size so that the generator sees as many
-            # samples as the discriminator did. 
+        latent_fake = tf.random.normal(( batch_size, self.n_latent_dims))
+        class_fake = self.generate_random_classes(batch_size)
+        z_cond_fake = tf.concat([latent_fake, class_fake], axis=1)
+
+        with tf.GradientTape() as gt2:
+            images_fake = self.generator(z_cond_fake, training=True)
+            pred_fake, pred_class_fake = self.discriminator(images_fake, training=False)
+            print("pred_class_fake:", pred_class_fake.shape)
+            print("class_fake     :", class_fake.shape)
+
+            # Generator tries to fool discriminator
+            label_real_2 = tf.ones((batch_size, 1))
+            loss_gen_gan = self.loss_fn_gen(label_real_2, pred_fake)
+
+            # Generator tries to classify correctly
+
+            loss_gen_class = self.loss_class_fn(class_fake, pred_class_fake)
 
 
+            # Total generator loss
+            loss_gen_total = loss_gen_gan + self.cond_loss_weight * loss_gen_class
 
+        grads_gen = gt2.gradient(loss_gen_total, self.generator.trainable_weights)
+        self.optimizer_gen.apply_gradients(zip(grads_gen, self.generator.trainable_weights))
 
-            # Predict with the discriminator
+        # Update trackers
+        self.loss_gen_tracker.update_state(loss_gen_total)
+        self.loss_disc_tracker.update_state(loss_disc_total)
 
-            
-            # We want to the discriminator to think these images are real, so we
-            # calculate the loss between these predictions and the "real image"
-            # labels
-
-
-            # Compute loss between discriminator-predicted classes and the desired classes
-
-            # Add losses
-
-                        
-        # Compute the gradient of the lost wrt the generator weights
-
-        
-        # Apply the weight updates
-
-        
-        # Update the running means of the losses
-        
-        # Get the current values of these running means as a dict. These values
-        # will be printed in the progress bar.
-
-        ## return dictLosses
+        return {
+            'loss_gen': self.loss_gen_tracker.result(),
+            'loss_disc': self.loss_disc_tracker.result(),
+            'class_acc': self.metric_class.result(),
+        }
 
     def get_config(self):
         # To allow saving and loading of a custom model, we need to implement a

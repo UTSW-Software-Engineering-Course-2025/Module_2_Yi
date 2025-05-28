@@ -12,7 +12,7 @@ def sfn(dist_mean, dist_logvar):
     return sampledZ
     
 class GenerateImagesConditional(Callback):
-    def __init__(self, output_dir, model, example_labels,
+    def __init__(self, output_dir, example_labels,
                  cmap='gray',
                  n_generated_images=10, 
                  n_latent_dims=8,
@@ -35,7 +35,6 @@ class GenerateImagesConditional(Callback):
         self.cmap = cmap
         self.n_generated_images = n_generated_images
         self.n_latent_dims = n_latent_dims
-        self.model = model
         self.example_labels = example_labels
         self.n_classes = example_labels.shape[1]
         self.class_names = class_names
@@ -92,7 +91,7 @@ class GenerateImagesConditional(Callback):
         plt.close(fig)
             
 class SaveImagesConditional(Callback):
-    def __init__(self, output_dir, model, example_images, example_labels,
+    def __init__(self, output_dir,  example_images, example_labels,
                  n_generated_images=10,
                  n_latent_dims=8,
                  class_names=None,
@@ -117,7 +116,7 @@ class SaveImagesConditional(Callback):
         self.n_classes = example_labels.shape[1]
         self.n_generated_images = n_generated_images
         self.n_latent_dims = n_latent_dims
-        self.model = model
+
         self.class_names = class_names
         
         self.images_tensor = tf.convert_to_tensor(self.example_images, dtype=tf.float32)
@@ -155,7 +154,8 @@ class SaveImagesConditional(Callback):
         decoder_inputs = tf.concat([z_real, self.labels_tensor], axis=1)
         recons = self.model.decoder(decoder_inputs)
         # Convert from tensors to numpy arrays
-        recons = recons.numpy()
+        # recons = recons.numpy()
+        recons = tf.keras.backend.get_value(recons)
         n_recons = recons.shape[0]
         
         # Use the gray colormap if the image is grayscale (last dimension is 1),
