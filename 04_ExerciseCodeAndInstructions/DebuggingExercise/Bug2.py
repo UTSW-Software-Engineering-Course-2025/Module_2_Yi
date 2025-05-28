@@ -22,7 +22,8 @@ dOuput = {}
 dInput = {'A':1,
         'B':2,
         'C':3}
-dOutput = build_new_dictionary_from_input(dInput)
+dInput_copy = dInput.copy()
+dOutput = build_new_dictionary_from_input(dInput_copy)
 print('Input dictionary: ', dInput)
 print('Onput dictionary: ', dOutput)
 

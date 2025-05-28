@@ -11,7 +11,7 @@ def sfn(dist_mean, dist_logvar):
     return sampledZ
 
 class GenerateImages(Callback):
-    def __init__(self, output_dir, model, 
+    def __init__(self, output_dir,
                  cmap='gray',
                  n_generated_images=10, 
                  n_latent_dims=8):
@@ -31,8 +31,7 @@ class GenerateImages(Callback):
         self.cmap = cmap
         self.n_generated_images = n_generated_images
         self.n_latent_dims = n_latent_dims
-        self.model = model
-        
+
     def on_epoch_end(self, epoch, logs=None):
         """Overrides the on_epoch_end method of the superclass Callback. Here,
         we define what operations should be done, as the name implies, at the

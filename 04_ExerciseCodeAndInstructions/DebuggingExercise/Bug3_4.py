@@ -15,9 +15,8 @@ tf.config.experimental.set_virtual_device_configuration(
 """
 # normalize data to zero mean and unit variance
 def normalize_data(x):
-    x_mean = np.mean(x, axis=0)
-    x_std = np.std(x, axis=0)
-    return (x - x_mean) / x_std 
+    x = x.astype("float32") / 255.0
+    return x
 
 class MyModel(Model):
     def __init__(self):
@@ -78,20 +77,20 @@ if __name__ == "__main__":
     train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="train_accuracy")
     test_loss = tf.keras.metrics.Mean(name="test_loss")
     test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="test_accuracy")
-
+    model.compile(optimizer=optimizer, loss=loss_object, metrics=[train_loss, train_accuracy, test_loss, test_accuracy])
     EPOCHS = 5
     for epoch in range(EPOCHS):
         # Reset the metrics at the start of the next epoch
-        train_loss.reset_states()
-        train_accuracy.reset_states()
-        test_loss.reset_states()
-        test_accuracy.reset_states()
+        train_loss.reset_state()
+        train_accuracy.reset_state()
+        test_loss.reset_state()
+        test_accuracy.reset_state()
 
         for images, labels in train_ds:
             train_step(images, labels)
 
         for test_images, test_labels in test_ds:
-            test_step(images, test_labels)
+            test_step(test_images, test_labels)
 
         print(
             f"Epoch {epoch + 1}, "

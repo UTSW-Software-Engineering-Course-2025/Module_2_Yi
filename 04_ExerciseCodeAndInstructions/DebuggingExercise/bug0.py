@@ -6,8 +6,17 @@ def fReplaceText(strInput, strText, intStart, intStop):
     #copy the string
     strReturn = strInput[:]
     #update the section of the string with inputted text
-    strReturn[intStart:intStop] = strText
-    return strReturn
+    strReturn = list(strReturn)
+    strText = list(strText)
+    for j in range(len(strText)):
+        strReturn.insert(intStop+j, strText[j])
+    strReturn.pop()
+    # strReturn = ''.join(strReturn)
+    del strReturn[intStart:intStop]
+
+    
+    strReturn = ''.join(strReturn)
+    return str(strReturn)
 
 def fFindAndReplaceInStr(strInput, strOld, strNew):
     """
@@ -15,10 +24,14 @@ def fFindAndReplaceInStr(strInput, strOld, strNew):
     """
     intLenOld = len(strOld)
     intStart = strInput.find(strOld)
-    fReplaceText(strInput, strNew, intStart, intStart+intLenOld)
+    return fReplaceText(strInput, strNew, intStart, intStart+intLenOld)
 
 
-#fix famous misquote
-print(fFindAndReplaceInStr("Luke, I am your father.", 'Luke', 'No'))
+
 #Hint: run the file in debug mode, VSCode should catch the exception.
 #Then try the Error line of code in DEBUG CONSOLE, check these strings, how to make it right?
+def main():
+    print(fFindAndReplaceInStr("Luke, I am your father.", 'Luke', 'No'))
+
+if __name__ == "__main__":
+    main()
